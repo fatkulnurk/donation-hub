@@ -19,6 +19,12 @@ type InternalServerError struct {
 	Ts      int64  `json:"ts"`
 }
 
+type ResponseError struct {
+	Status int       `json:"status"`
+	Err    string    `json:"err"`
+	Ts     time.Time `json:"ts"`
+}
+
 func NewError(isOk bool, err string, msg string) *Error {
 	return &Error{
 		Ok:      isOk,
@@ -79,5 +85,13 @@ func newInternalServerError(msg string) *InternalServerError {
 		Err:     "ERR_INTERNAL_ERROR",
 		Message: msg,
 		Ts:      time.Now().Unix(),
+	}
+}
+
+func newErrorResponse(status int, err string, ts time.Time) *ResponseError {
+	return &ResponseError{
+		Status: status,
+		Err:    err,
+		Ts:     ts,
 	}
 }
