@@ -1,20 +1,61 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/isdzulqor/donation-hub/internal/core/service/user"
+	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/userstorage"
 	"github.com/isdzulqor/donation-hub/internal/driver/rest"
+	"github.com/jmoiron/sqlx"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
-type Response struct {
-	Message string `json:"message"`
+type config struct {
+	port         string
+	dbDriverName string
+	dbDataSource string
 }
 
 type customServeMux struct {
 	*http.ServeMux
 	excludedURLs []string
+}
+
+func main() {
+	cfg := envConfig()
+	db, _ := GetDatabaseConnection(cfg.dbDriverName, cfg.dbDataSource)
+
+	userDataStorage := userstorage.New(db)
+	userService := user.NewService(userDataStorage)
+
+	api := rest.API{
+		DB:             db,
+		UserService:    nil,
+		ProjectService: nil,
+	}
+	mux := &customServeMux{
+		ServeMux: http.NewServeMux(),
+		// exclude url for force write header Content-Type application/json
+		excludedURLs: []string{
+			"/",
+			"favicon.ico",
+			"/assets",
+		},
+	}
+	mux.HandleFunc("/users/register", api.HandlePostUserRegister)
+	mux.HandleFunc("/users/login", api.HandlePostUserLogin)
+	mux.HandleFunc("/users", api.HandleGetUser)
+	mux.HandleFunc("/projects/upload", api.HandleGetProjectUpload)
+	mux.HandleFunc("/projects", api.HandleGetAndPostProject)
+	mux.HandleFunc("/projects/", api.HandleGetProjectById)
+	mux.HandleFunc("/projects/{project_id}/review", api.HandlePutProjectReview)
+	mux.HandleFunc("/projects/{project_id}/donations", api.HandleGetAndPostProjectDonation)
+	log.Println("Starting server on :" + cfg.port)
+	err := http.ListenAndServe(":"+cfg.port, mux)
+	log.Fatal(err)
 }
 
 func toJsonMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -45,125 +86,37 @@ func (m *customServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func main() {
-	mux := &customServeMux{
-		ServeMux: http.NewServeMux(),
-		excludedURLs: []string{
-			"favicon.ico",
-		},
+func envConfig() config {
+	port, ok := os.LookupEnv("APP_PORT")
+	if !ok {
+		panic("APP_PORT not provided")
 	}
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			resp := Response{"Method salah"}
-			_ = json.NewEncoder(w).Encode(resp)
 
-			return
-		}
+	dbDriverName, ok := os.LookupEnv("DATABASE_DRIVER_NAME")
+	if !ok {
+		panic("DATABASE_DRIVER_NAME not provided")
+	}
 
-		w.WriteHeader(http.StatusOK)
-		resp := Response{"oke handler bisa"}
-		_ = json.NewEncoder(w).Encode(resp)
-	})
+	dbDataSource, ok := os.LookupEnv("DATABASE_DATA_SOURCE")
+	if !ok {
+		panic("DATABASE_DATA_SOURCE not provided")
+	}
 
-	mux.HandleFunc("/users/register", handlePostUserRegister)
-	mux.HandleFunc("/users/login", handlePostUserLogin)
-	mux.HandleFunc("/users", handleGetUser)
-	mux.HandleFunc("/projects/upload", handleGetProjectUpload)
-	mux.HandleFunc("/projects/", handleGetAndPostProject)
-	mux.HandleFunc("/projects/:id", handleGetProjectById)
-	mux.HandleFunc("/projects/:id/review", handlePutProjectReview)
-	mux.HandleFunc("/projects/:id/donations", handleGetAndPostProjectDonation)
-	log.Println("Starting server on :8180")
-	err := http.ListenAndServe(":8180", mux)
-	log.Fatal(err)
+	return config{port, dbDriverName, dbDataSource}
 }
 
-func handlePostUserRegister(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
+func GetDatabaseConnection(driverName string, dataSource string) (*sqlx.DB, error) {
+	db, err := sqlx.Open(driverName, dataSource)
+	log.Println("Get Database Connection")
+	log.Println(driverName)
+	log.Println(dataSource)
+	if err != nil {
+		log.Fatalln(err)
 
-func handlePostUserLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-func handleGetUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-func handleGetProjectUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-func handleGetAndPostProject(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		// list project
-		return
-	case http.MethodPost:
-		// Submit Project
-		return
-	default:
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-// PUT: /projects/{project_id}/review
-func handlePutProjectReview(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
+		return nil, err
 	}
 
-	projectId := r.URL.Query().Get("id")
-	_ = projectId // sementara di taruh di sampah
-}
+	fmt.Println("Database Connected")
 
-// Get Project
-func handleGetProjectById(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-
-	projectId := r.URL.Query().Get("id")
-	_ = projectId // sementara di taruh di sampah
-}
-
-func handleGetAndPostProjectDonation(w http.ResponseWriter, r *http.Request) {
-	projectId := r.URL.Query().Get("id")
-	_ = projectId // sementara di taruh di sampah
-
-	switch r.Method {
-	case http.MethodGet:
-		// List Project Donations
-		return
-	case http.MethodPost:
-		// Donate to Project
-		return
-	default:
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
+	return db, nil
 }
