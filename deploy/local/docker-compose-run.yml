@@ -35,7 +35,7 @@ services:
       - LOG_LEVEL=debug
       - APP_PORT=8180
       - DATABASE_DRIVER_NAME=mysql
-      - DATABASE_DATA_SOURCE="root:@tcp(localhost:3306)/donation_hub"
+      - DATABASE_DATA_SOURCE="root:test1234@tcp(mysql:3306)/donation_hub"
 
   mysql:
     image: mysql:8.3.0
