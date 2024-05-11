@@ -33,6 +33,9 @@ services:
       - AWS_SECRET_ACCESS_KEY=awslocal
       - LOCALSTACK_ENDPOINT=http://localstack:4566
       - LOG_LEVEL=debug
+      - APP_PORT=8180
+      - DATABASE_DRIVER_NAME=mysql
+      - DATABASE_DATA_SOURCE="root:@tcp(localhost:3306)/donation_hub"
 
   mysql:
     image: mysql:8.3.0
