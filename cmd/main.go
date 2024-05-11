@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/isdzulqor/donation-hub/internal/core/service/user"
-	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/userstorage"
 	"github.com/isdzulqor/donation-hub/internal/driver/rest"
 	"github.com/jmoiron/sqlx"
 	"log"
@@ -28,8 +26,8 @@ func main() {
 	cfg := envConfig()
 	db, _ := GetDatabaseConnection(cfg.dbDriverName, cfg.dbDataSource)
 
-	userDataStorage := userstorage.New(db)
-	userService := user.NewService(userDataStorage)
+	//userDataStorage := userstorage.New(db)
+	//userService := user.NewService(userDataStorage)
 
 	api := rest.API{
 		DB:             db,
