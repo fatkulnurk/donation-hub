@@ -1,90 +1,59 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/isdzulqor/donation-hub/internal/core/service/project"
+	"github.com/isdzulqor/donation-hub/internal/core/service/user"
+	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/projectstorage"
+	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/userstorage"
+	"github.com/isdzulqor/donation-hub/internal/driven/storage/s3/projectfilestorage"
 	"github.com/isdzulqor/donation-hub/internal/driver/rest"
 	"github.com/jmoiron/sqlx"
 	"log"
-	"net/http"
 	"os"
-	"strings"
 )
 
-type config struct {
+type configmap struct {
 	port         string
 	dbDriverName string
 	dbDataSource string
 }
 
-type customServeMux struct {
-	*http.ServeMux
-	excludedURLs []string
-}
-
 func main() {
 	cfg := envConfig()
-	db, _ := GetDatabaseConnection(cfg.dbDriverName, cfg.dbDataSource)
+	db, err := GetDatabaseConnection(cfg.dbDriverName, cfg.dbDataSource)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
 
-	//userDataStorage := userstorage.New(db)
-	//userService := user.NewService(userDataStorage)
+	s3Client, err := initializeS3Client()
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	userStorage := userstorage.New(db)
+	userService := user.NewService(userStorage)
+
+	projectFileStorage := projectfilestorage.NewStorage(s3Client)
+	projectStorage := projectstorage.New(db)
+	projectService := project.NewService(projectStorage, projectFileStorage)
 
 	api := rest.API{
 		DB:             db,
-		UserService:    nil,
-		ProjectService: nil,
+		UserService:    userService,
+		ProjectService: projectService,
 	}
-	mux := &customServeMux{
-		ServeMux: http.NewServeMux(),
-		// exclude url for force write header Content-Type application/json
-		excludedURLs: []string{
-			"/",
-			"favicon.ico",
-			"/assets",
-		},
-	}
-	mux.HandleFunc("/users/register", api.HandlePostUserRegister)
-	mux.HandleFunc("/users/login", api.HandlePostUserLogin)
-	mux.HandleFunc("/users", api.HandleGetUser)
-	mux.HandleFunc("/projects/upload", api.HandleGetProjectUpload)
-	mux.HandleFunc("/projects", api.HandleGetAndPostProject)
-	mux.HandleFunc("/projects/", api.HandleGetProjectById)
-	mux.HandleFunc("/projects/{project_id}/review", api.HandlePutProjectReview)
-	mux.HandleFunc("/projects/{project_id}/donations", api.HandleGetAndPostProjectDonation)
-	log.Println("Starting server on :" + cfg.port)
-	err := http.ListenAndServe(":"+cfg.port, mux)
-	log.Fatal(err)
+
+	api.ListenAndServe(cfg.port)
 }
 
-func toJsonMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		next(w, r)
-	}
-}
-
-func (m *customServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	requestHandler, _ := m.ServeMux.Handler(r)
-	found := false
-	for _, url := range m.excludedURLs {
-		if strings.HasPrefix(r.URL.Path, url) {
-			found = true
-			break
-		}
-	}
-
-	// Apply middleware if not excluded and handler exists.
-	if !found && requestHandler != nil {
-		middleware := toJsonMiddleware(http.HandlerFunc(requestHandler.ServeHTTP))
-		middleware(w, r)
-	} else if !found {
-		http.NotFound(w, r)
-	} else {
-		requestHandler.ServeHTTP(w, r)
-	}
-}
-
-func envConfig() config {
+func envConfig() configmap {
 	port, ok := os.LookupEnv("APP_PORT")
 	if !ok {
 		panic("APP_PORT not provided")
@@ -100,11 +69,11 @@ func envConfig() config {
 		panic("DATABASE_DATA_SOURCE not provided")
 	}
 
-	return config{port, dbDriverName, dbDataSource}
+	return configmap{port, dbDriverName, dbDataSource}
 }
 
 func GetDatabaseConnection(driverName string, dataSource string) (*sqlx.DB, error) {
-	db, err := sqlx.Open(driverName, dataSource)
+	db, err := sqlx.Connect("mysql", dataSource)
 	log.Println("Get Database Connection")
 	log.Println(driverName)
 	log.Println(dataSource)
@@ -117,4 +86,26 @@ func GetDatabaseConnection(driverName string, dataSource string) (*sqlx.DB, erro
 	fmt.Println("Database Connected")
 
 	return db, nil
+}
+
+func initializeS3Client() (s3Client *s3.Client, err error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithRegion(os.Getenv("AWS_DEFAULT_REGION")),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			os.Getenv("AWS_ACCESS_KEY_ID"),
+			os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			os.Getenv("AWS_SESSION_TOKEN"),
+		)),
+	)
+
+	if err != nil {
+		return s3Client, fmt.Errorf("failed to load configuration, %w", err)
+	}
+
+	s3Client = s3.NewFromConfig(cfg, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(os.Getenv("LOCALSTACK_ENDPOINT"))
+		options.UsePathStyle = os.Getenv("AWS_USE_PATH_STYLE_ENDPOINT") == "1"
+	})
+
+	return s3Client, err
 }

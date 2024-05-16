@@ -10,12 +10,69 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 type API struct {
 	DB             *sqlx.DB
 	UserService    user.Service
 	ProjectService project.Service
+}
+
+type customServeMux struct {
+	*http.ServeMux
+	excludedURLs []string
+}
+
+func (api *API) ListenAndServe(appPort string) {
+	mux := &customServeMux{
+		ServeMux: http.NewServeMux(),
+		// exclude url for force write header Content-Type application/json
+		excludedURLs: []string{
+			"/",
+			"favicon.ico",
+			"/assets",
+		},
+	}
+	mux.HandleFunc("/users/register", api.HandlePostUserRegister)
+	mux.HandleFunc("/users/login", api.HandlePostUserLogin)
+	mux.HandleFunc("/users", api.HandleGetUser)
+	mux.HandleFunc("/projects/upload", api.HandleGetProjectUpload)
+	mux.HandleFunc("/projects", api.HandleGetAndPostProject)
+	mux.HandleFunc("/projects/", api.HandleGetProjectById)
+	mux.HandleFunc("/projects/{project_id}/review", api.HandlePutProjectReview)
+	mux.HandleFunc("/projects/{project_id}/donations", api.HandleGetAndPostProjectDonation)
+	log.Println("Starting server on :" + appPort)
+	err := http.ListenAndServe(":"+appPort, mux)
+	log.Fatal(err)
+}
+
+func toJsonMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		next(w, r)
+	}
+}
+
+func (m *customServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	requestHandler, _ := m.ServeMux.Handler(r)
+	found := false
+	for _, url := range m.excludedURLs {
+		if strings.HasPrefix(r.URL.Path, url) {
+			found = true
+			break
+		}
+	}
+
+	// Apply middleware if not excluded and handler exists.
+	if !found && requestHandler != nil {
+		middleware := toJsonMiddleware(http.HandlerFunc(requestHandler.ServeHTTP))
+		middleware(w, r)
+	} else if !found {
+		http.NotFound(w, r)
+	} else {
+		requestHandler.ServeHTTP(w, r)
+	}
 }
 
 func (api *API) HandlePostUserRegister(w http.ResponseWriter, r *http.Request) {
@@ -43,20 +100,27 @@ func (api *API) HandlePostUserRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !regexp.MustCompile(`^(donor|requester)$`).MatchString(rb.Role) {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(NewBadRequest("role must be 'donor' or 'requester'"))
-		return
-	}
-
-	// store
-	u, err := api.UserService.Register(r.Context(), rb)
+	log.Println("ok sekarang register")
+	// store data
+	u, err := api.UserService.Register(rb)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
+		return
 	}
 
-	_ = json.NewEncoder(w).Encode(u)
+	var data = struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+	}{
+		ID:       u.ID,
+		Username: u.Username,
+		Email:    u.Email,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(NewResponseOk(data))
 	return
 }
 
