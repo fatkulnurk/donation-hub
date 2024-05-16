@@ -13,7 +13,7 @@ type Storage struct {
 type Service interface {
 	Register(rb req.RegisterReqBody) (user entity.User, err error)
 	Login(username string, password string) (user entity.User, accessToken string, err error)
-	ListUser(limit int, page int, role string) (users []entity.User, totalPage int, err error)
+	ListUser(limit int, page int, role string) (users []entity.User, totalPage int64, err error)
 }
 
 func NewService(storage DataStorage) Service {
@@ -44,9 +44,22 @@ func (s *Storage) Register(rb req.RegisterReqBody) (user entity.User, err error)
 }
 
 func (s *Storage) Login(username string, password string) (user entity.User, accessToken string, err error) {
-	panic("implement me")
+	user, err = s.storage.GetUserByUsername(username)
+	if err != nil || user.Password != password {
+		err = errors.New("invalid username or password")
+		return
+	}
+
+	// todo generate access token
+
+	return
 }
 
-func (s *Storage) ListUser(limit int, page int, role string) (users []entity.User, totalPage int, err error) {
-	panic("implement me")
+func (s *Storage) ListUser(limit int, page int, role string) (users []entity.User, totalPage int64, err error) {
+	users, totalPage, err = s.storage.GetUser(limit, page, role)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return
 }

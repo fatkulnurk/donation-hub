@@ -11,7 +11,7 @@ type Storage struct {
 }
 
 type Service interface {
-	RequestUploadUrl(mimeType string, fileSize int) (url string, expiredAt int, err error)
+	RequestUploadUrl(mimeType string, fileSize int64) (url string, expiredAt int64, err error)
 	Submit(rb req.SubmitProjectReqBody) (err error)
 	ReviewByAdmin(ctx context.Context, rb req.ReviewProjectReqBody) (err error)
 	Get(ctx context.Context) (err error)
@@ -27,9 +27,10 @@ func NewService(storage DataStorage, fileStorage FileStorage) Service {
 	}
 }
 
-func (s Storage) RequestUploadUrl(mimeType string, fileSize int) (url string, expiredAt int, err error) {
-	//TODO implement me
-	panic("implement me")
+func (s Storage) RequestUploadUrl(mimeType string, fileSize int64) (url string, expiredAt int64, err error) {
+	url, expiredAt, err = s.fileStorage.RequestUploadUrl(mimeType, fileSize)
+
+	return
 }
 
 func (s Storage) Submit(rb req.SubmitProjectReqBody) (err error) {

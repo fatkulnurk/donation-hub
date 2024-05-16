@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -131,6 +132,46 @@ func (api *API) HandlePostUserLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Println("login")
+
+	var rb req.LoginReqBody
+	err := json.NewDecoder(r.Body).Decode(&rb)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
+		return
+	}
+
+	// validation
+	isFails := validator.Validate(rb)
+	if isFails != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest(isFails.Error()))
+		return
+	}
+
+	u, token, err := api.UserService.Login(rb.Username, rb.Password)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(NewError(false, "ERR_INVALID_CREDS", "Invalid username or password"))
+		return
+	}
+
+	var data = struct {
+		ID          int64  `json:"id"`
+		Username    string `json:"username"`
+		Email       string `json:"email"`
+		AccessToken string `json:"access_token"`
+	}{
+		ID:          u.ID,
+		Username:    u.Username,
+		Email:       u.Email,
+		AccessToken: token,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(NewResponseOk(data))
+	return
 }
 
 func (api *API) HandleGetUser(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +180,44 @@ func (api *API) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(NewNotFound())
 		return
 	}
-	log.Println("get users")
+
+	var limit, page = 10, 1
+	limitQuery := r.URL.Query().Get("limit")
+	pageQuery := r.URL.Query().Get("page")
+
+	if limitQuery != "" {
+		limit, _ = strconv.Atoi(limitQuery)
+	}
+
+	if pageQuery != "" {
+		page, _ = strconv.Atoi(pageQuery)
+	}
+
+	var role = strings.ToLower(r.URL.Query().Get("role"))
+	if role != "donor" && role != "requester" {
+		role = ""
+	}
+
+	users, totalPage, err := api.UserService.ListUser(limit, page, role)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
+		return
+	}
+
+	var data = struct {
+		Users      interface{} `json:"users"`
+		Page       int         `json:"page"`
+		TotalPages int64       `json:"total_pages"`
+	}{
+		Users:      users,
+		Page:       page,
+		TotalPages: totalPage,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(NewResponseOk(data))
+	return
 }
 
 func (api *API) HandleGetProjectUpload(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +227,37 @@ func (api *API) HandleGetProjectUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("ini api upload")
+	var mimeType = strings.ToLower(r.URL.Query().Get("mime_type"))
+	var fileSize, _ = strconv.Atoi(r.URL.Query().Get("file_size"))
+	if mimeType != "image/jpeg" && mimeType != "image/png" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest("Wrong mimetype"))
+		return
+	}
+
+	url, at, err := api.ProjectService.RequestUploadUrl(mimeType, int64(fileSize))
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
+		return
+	}
+
+	var data = struct {
+		MimeType  string `json:"mime_type"`
+		FileSize  int    `json:"file_size"`
+		Url       string `json:"url"`
+		ExpiresAt int64  `json:"expires_at"`
+	}{
+		MimeType:  mimeType,
+		FileSize:  fileSize,
+		Url:       url,
+		ExpiresAt: at,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(NewResponseOk(data))
+	return
 }
 
 func (api *API) HandleGetAndPostProject(w http.ResponseWriter, r *http.Request) {

@@ -1,7 +1,7 @@
 package project
 
 type FileStorage interface {
-	RequestUploadUrl(mimeType string, fileSize int) (url string, err error)
+	RequestUploadUrl(mimeType string, fileSize int64) (url string, expiredAt int64, err error)
 }
 
 type DataStorage interface {

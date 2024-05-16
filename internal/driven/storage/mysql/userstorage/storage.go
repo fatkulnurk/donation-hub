@@ -56,3 +56,46 @@ func (s Storage) HasUsername(username string) (has bool, err error) {
 	fmt.Println(exists)
 	return exists, err
 }
+
+func (s Storage) GetUserByUsername(username string) (user entity.User, err error) {
+	query := "select * from users where username = ?"
+	err = s.sqlClient.Get(&user, query, username)
+
+	return
+}
+
+func (s Storage) GetUser(limit int, page int, role string) (users []entity.User, total int64, err error) {
+	offset := (page - 1) * limit
+	var query, queryCount string
+
+	if role == "" {
+		query = `SELECT users.*, GROUP_CONCAT(user_roles.role SEPARATOR ',') AS roles
+				FROM users 
+				JOIN user_roles ON users.id = user_roles.user_id
+				WHERE user_roles.role IN ("donor", "requester")
+				GROUP BY users.id LIMIT ? OFFSET ? `
+
+		queryCount = `SELECT count(*)
+				FROM users 
+				JOIN user_roles ON users.id = user_roles.user_id
+				WHERE user_roles.role IN ("donor", "requester")
+				GROUP BY users.id LIMIT ? OFFSET ? `
+
+		err = s.sqlClient.Select(&users, query, limit, offset)
+		err = s.sqlClient.Get(&total, queryCount)
+	} else {
+		query = `SELECT users.*, GROUP_CONCAT(user_roles.role SEPARATOR ',') AS roles
+				FROM users 
+				JOIN user_roles ON users.id = user_roles.user_id
+				WHERE user_roles.role = ? GROUP BY users.id LIMIT ? OFFSET ? `
+		queryCount = `SELECT count(*)
+				FROM users 
+				JOIN user_roles ON users.id = user_roles.user_id
+				WHERE user_roles.role = ? GROUP BY users.id LIMIT ? OFFSET ? `
+
+		err = s.sqlClient.Select(&users, query, limit, offset)
+		err = s.sqlClient.Get(&total, queryCount)
+	}
+
+	return
+}
