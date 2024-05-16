@@ -1,0 +1,17 @@
+### Register
+POST {{baseUrl}}/users/register
+Content-Type: application/json
+
+{
+  "username": "alfonso",
+  "email": "alfonxso@gmail.com",
+  "password": "123456",
+  "role": "donor"
+}
+
+> {%
+    client.global.set("username", response.body.data.username);
+    client.global.set("password", response.body.data.email);
+%}
+
+###
