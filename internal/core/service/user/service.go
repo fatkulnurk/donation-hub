@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"errors"
 	"github.com/isdzulqor/donation-hub/internal/core/entity"
 	"github.com/isdzulqor/donation-hub/internal/driver/rest/req"
@@ -12,9 +11,9 @@ type Storage struct {
 }
 
 type Service interface {
-	Register(ctx context.Context, rb req.RegisterReqBody) (user entity.User, err error)
-	Login(ctx context.Context, rb req.LoginReqBody) (user entity.User, err error)
-	Get(ctx context.Context) (users []entity.User, err error)
+	Register(rb req.RegisterReqBody) (user entity.User, err error)
+	Login(username string, password string) (user entity.User, accessToken string, err error)
+	ListUser(limit int, page int, role string) (users []entity.User, totalPage int, err error)
 }
 
 func NewService(storage DataStorage) Service {
@@ -23,36 +22,31 @@ func NewService(storage DataStorage) Service {
 	}
 }
 
-func (s *Storage) Register(ctx context.Context, rb req.RegisterReqBody) (user entity.User, err error) {
-	userEntity := entity.User{
-		Username: rb.Username,
-		Email:    rb.Email,
-		Password: rb.Password,
-	}
-
-	hasEmail, err := s.storage.HasEmail(ctx, userEntity.Email)
+func (s *Storage) Register(rb req.RegisterReqBody) (user entity.User, err error) {
+	hasEmail, err := s.storage.HasEmail(rb.Email)
 	if (err != nil) || (hasEmail) {
 		err = errors.New("email already exists")
 		return
 	}
 
-	hasUsername, err := s.storage.HasUsername(ctx, userEntity.Username)
+	hasUsername, err := s.storage.HasUsername(rb.Username)
 	if (err != nil) || (hasUsername) {
 		err = errors.New("username already exists")
 		return
 	}
-
-	_ = s.storage.Store(ctx, &userEntity)
-
-	return userEntity, err
+	user = entity.User{
+		Username: rb.Username,
+		Password: rb.Password,
+		Email:    rb.Email,
+	}
+	user, err = s.storage.CreateUser(user, rb.Role)
+	return user, err
 }
 
-func (s *Storage) Login(ctx context.Context, rb req.LoginReqBody) (user entity.User, err error) {
-	//TODO implement me
+func (s *Storage) Login(username string, password string) (user entity.User, accessToken string, err error) {
 	panic("implement me")
 }
 
-func (s *Storage) Get(ctx context.Context) (users []entity.User, err error) {
-	//TODO implement me
+func (s *Storage) ListUser(limit int, page int, role string) (users []entity.User, totalPage int, err error) {
 	panic("implement me")
 }

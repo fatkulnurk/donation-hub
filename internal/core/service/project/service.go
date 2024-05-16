@@ -6,12 +6,13 @@ import (
 )
 
 type Storage struct {
-	storage DataStorage
+	storage     DataStorage
+	fileStorage FileStorage
 }
 
 type Service interface {
-	RequestUploadUrl(ctx context.Context) (x string, err error)
-	Submit(ctx context.Context, rb req.SubmitProjectReqBody) (err error)
+	RequestUploadUrl(mimeType string, fileSize int) (url string, expiredAt int, err error)
+	Submit(rb req.SubmitProjectReqBody) (err error)
 	ReviewByAdmin(ctx context.Context, rb req.ReviewProjectReqBody) (err error)
 	Get(ctx context.Context) (err error)
 	GetById(ctx context.Context, id uint32) (err error)
@@ -19,18 +20,19 @@ type Service interface {
 	GetDonationById(ctx context.Context, id uint32) (err error)
 }
 
-func NewService(storage DataStorage) Service {
+func NewService(storage DataStorage, fileStorage FileStorage) Service {
 	return &Storage{
-		storage: storage,
+		storage:     storage,
+		fileStorage: fileStorage,
 	}
 }
 
-func (s Storage) RequestUploadUrl(ctx context.Context) (x string, err error) {
+func (s Storage) RequestUploadUrl(mimeType string, fileSize int) (url string, expiredAt int, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s Storage) Submit(ctx context.Context, rb req.SubmitProjectReqBody) (err error) {
+func (s Storage) Submit(rb req.SubmitProjectReqBody) (err error) {
 	//TODO implement me
 	panic("implement me")
 }

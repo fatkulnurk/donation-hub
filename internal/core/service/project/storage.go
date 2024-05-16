@@ -1,8 +1,14 @@
 package project
 
-type DataStorage interface {
+type FileStorage interface {
+	RequestUploadUrl(mimeType string, fileSize int) (url string, err error)
 }
 
-type FileStorage interface {
-	RequestUploadUrl()
+type DataStorage interface {
+	Submit() (err error)
+	ReviewByAdmin() (err error)
+	Get() (err error)
+	GetById() (err error)
+	DonateToProject() (err error)
+	GetDonationById() (err error)
 }
