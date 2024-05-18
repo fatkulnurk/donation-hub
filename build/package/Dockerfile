@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine3.17 as build
+FROM golang:1.22-alpine3.19 as build
 WORKDIR /go/src/github.com/isdzulqor/donation-hub
 
 COPY go.mod go.sum ./
@@ -10,7 +10,7 @@ COPY ./internal ./internal
 WORKDIR /go/src/github.com/isdzulqor/donation-hub/cmd
 RUN go build -o server
 
-FROM alpine:3.15
+FROM alpine:3.19
 RUN apk add ca-certificates tzdata
 
 COPY --from=build /go/src/github.com/isdzulqor/donation-hub/cmd/server ./server
