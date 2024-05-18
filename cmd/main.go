@@ -1,169 +1,111 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
+	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/isdzulqor/donation-hub/internal/core/service/project"
+	"github.com/isdzulqor/donation-hub/internal/core/service/user"
+	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/projectstorage"
+	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/userstorage"
+	"github.com/isdzulqor/donation-hub/internal/driven/storage/s3/projectfilestorage"
 	"github.com/isdzulqor/donation-hub/internal/driver/rest"
+	"github.com/jmoiron/sqlx"
 	"log"
-	"net/http"
-	"strings"
+	"os"
 )
 
-type Response struct {
-	Message string `json:"message"`
-}
-
-type customServeMux struct {
-	*http.ServeMux
-	excludedURLs []string
-}
-
-func toJsonMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		next(w, r)
-	}
-}
-
-func (m *customServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	requestHandler, _ := m.ServeMux.Handler(r)
-	found := false
-	for _, url := range m.excludedURLs {
-		if strings.HasPrefix(r.URL.Path, url) {
-			found = true
-			break
-		}
-	}
-
-	// Apply middleware if not excluded and handler exists.
-	if !found && requestHandler != nil {
-		middleware := toJsonMiddleware(http.HandlerFunc(requestHandler.ServeHTTP))
-		middleware(w, r)
-	} else if !found {
-		http.NotFound(w, r)
-	} else {
-		requestHandler.ServeHTTP(w, r)
-	}
+type configmap struct {
+	port         string
+	dbDriverName string
+	dbDataSource string
 }
 
 func main() {
-	mux := &customServeMux{
-		ServeMux: http.NewServeMux(),
-		excludedURLs: []string{
-			"favicon.ico",
-		},
+	cfg := envConfig()
+	db, err := GetDatabaseConnection(cfg.dbDriverName, cfg.dbDataSource)
+	if err != nil {
+		log.Fatalln(err.Error())
 	}
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			resp := Response{"Method salah"}
-			_ = json.NewEncoder(w).Encode(resp)
 
-			return
-		}
+	s3Client, err := initializeS3Client()
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
 
-		w.WriteHeader(http.StatusOK)
-		resp := Response{"oke handler bisa"}
-		_ = json.NewEncoder(w).Encode(resp)
+	userStorage := userstorage.New(db)
+	userService := user.NewService(userStorage)
+
+	projectFileStorage := projectfilestorage.NewStorage(s3Client)
+	projectStorage := projectstorage.New(db)
+	projectService := project.NewService(projectStorage, projectFileStorage)
+
+	api := rest.API{
+		DB:             db,
+		UserService:    userService,
+		ProjectService: projectService,
+	}
+
+	api.ListenAndServe(cfg.port)
+}
+
+func envConfig() configmap {
+	port, ok := os.LookupEnv("APP_PORT")
+	if !ok {
+		panic("APP_PORT not provided")
+	}
+
+	dbDriverName, ok := os.LookupEnv("DATABASE_DRIVER_NAME")
+	if !ok {
+		panic("DATABASE_DRIVER_NAME not provided")
+	}
+
+	dbDataSource, ok := os.LookupEnv("DATABASE_DATA_SOURCE")
+	if !ok {
+		panic("DATABASE_DATA_SOURCE not provided")
+	}
+
+	return configmap{port, dbDriverName, dbDataSource}
+}
+
+func GetDatabaseConnection(driverName string, dataSource string) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("mysql", dataSource)
+	log.Println("Get Database Connection")
+	log.Println(driverName)
+	log.Println(dataSource)
+	if err != nil {
+		log.Fatalln(err)
+
+		return nil, err
+	}
+
+	fmt.Println("Database Connected")
+
+	return db, nil
+}
+
+func initializeS3Client() (s3Client *s3.Client, err error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithRegion(os.Getenv("AWS_DEFAULT_REGION")),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			os.Getenv("AWS_ACCESS_KEY_ID"),
+			os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			os.Getenv("AWS_SESSION_TOKEN"),
+		)),
+	)
+
+	if err != nil {
+		return s3Client, fmt.Errorf("failed to load configuration, %w", err)
+	}
+
+	s3Client = s3.NewFromConfig(cfg, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(os.Getenv("LOCALSTACK_ENDPOINT"))
+		options.UsePathStyle = os.Getenv("AWS_USE_PATH_STYLE_ENDPOINT") == "1"
 	})
 
-	mux.HandleFunc("/users/register", handlePostUserRegister)
-	mux.HandleFunc("/users/login", handlePostUserLogin)
-	mux.HandleFunc("/users", handleGetUser)
-	mux.HandleFunc("/projects/upload", handleGetProjectUpload)
-	mux.HandleFunc("/projects/", handleGetAndPostProject)
-	mux.HandleFunc("/projects/:id", handleGetProjectById)
-	mux.HandleFunc("/projects/:id/review", handlePutProjectReview)
-	mux.HandleFunc("/projects/:id/donations", handleGetAndPostProjectDonation)
-	log.Println("Starting server on :8180")
-	err := http.ListenAndServe(":8180", mux)
-	log.Fatal(err)
-}
-
-func handlePostUserRegister(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-func handlePostUserLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-func handleGetUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-func handleGetProjectUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-func handleGetAndPostProject(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		// list project
-		return
-	case http.MethodPost:
-		// Submit Project
-		return
-	default:
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-}
-
-// PUT: /projects/{project_id}/review
-func handlePutProjectReview(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-
-	projectId := r.URL.Query().Get("id")
-	_ = projectId // sementara di taruh di sampah
-}
-
-// Get Project
-func handleGetProjectById(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
-
-	projectId := r.URL.Query().Get("id")
-	_ = projectId // sementara di taruh di sampah
-}
-
-func handleGetAndPostProjectDonation(w http.ResponseWriter, r *http.Request) {
-	projectId := r.URL.Query().Get("id")
-	_ = projectId // sementara di taruh di sampah
-
-	switch r.Method {
-	case http.MethodGet:
-		// List Project Donations
-		return
-	case http.MethodPost:
-		// Donate to Project
-		return
-	default:
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(rest.NewNotFound())
-		return
-	}
+	return s3Client, err
 }

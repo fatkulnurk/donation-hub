@@ -32,7 +32,12 @@ services:
       - AWS_ACCESS_KEY_ID=awslocal
       - AWS_SECRET_ACCESS_KEY=awslocal
       - LOCALSTACK_ENDPOINT=http://localstack:4566
+      - AWS_USE_PATH_STYLE_ENDPOINT=1
+      - AWS_BUCKET=media-donation-hub
       - LOG_LEVEL=debug
+      - APP_PORT=8180
+      - DATABASE_DRIVER_NAME=mysql
+      - DATABASE_DATA_SOURCE=root:test1234@tcp(mysql:3306)/donation_hub
 
   mysql:
     image: mysql:8.3.0
