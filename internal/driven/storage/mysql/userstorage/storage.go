@@ -1,8 +1,10 @@
 package userstorage
 
 import (
+	"context"
 	"fmt"
 	"github.com/isdzulqor/donation-hub/internal/core/entity"
+	"github.com/isdzulqor/donation-hub/internal/core/model"
 	"github.com/jmoiron/sqlx"
 	"time"
 )
@@ -15,23 +17,23 @@ func New(conn *sqlx.DB) *Storage {
 	return &Storage{sqlClient: conn}
 }
 
-func (s Storage) CreateUser(user entity.User, role string) (entity.User, error) {
+func (s Storage) CreateUser(ctx context.Context, input model.UserRegisterInput) (entity.User, error) {
 	ts := time.Now().Unix()
 	query := `INSERT INTO users (username, email, password,created_at) VALUES (?,?,?,?)`
-	resUser, err := s.sqlClient.Exec(query, user.Username, user.Email, user.Password, ts)
+	resUser, err := s.sqlClient.Exec(query, input.Username, input.Email, input.Password, ts)
 	if err != nil {
-		return user, err
+		return entity.User{}, err
 	}
 
 	userId, _ := resUser.LastInsertId()
 	query = `INSERT INTO user_roles (user_id, role) VALUES (?,?)`
-	_, err = s.sqlClient.Exec(query, userId, role)
+	_, err = s.sqlClient.Exec(query, userId, input.Role)
 
 	return entity.User{
 		ID:        userId,
-		Username:  user.Username,
-		Email:     user.Email,
-		Password:  user.Password,
+		Username:  input.Username,
+		Email:     input.Email,
+		Password:  input.Password,
 		CreatedAt: ts,
 	}, nil
 }

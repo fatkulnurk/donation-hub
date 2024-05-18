@@ -21,7 +21,7 @@ type UserLoginInput struct {
 }
 
 type UserLoginOutput struct {
-	ID          string `json:"id"`
+	ID          int64  `json:"id"`
 	Username    string `json:"username"`
 	Email       string `json:"email"`
 	AccessToken string `json:"access_token"`

@@ -10,7 +10,6 @@ import (
 	"gopkg.in/validator.v2"
 	"log"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -90,7 +89,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// validation
+	// validation input
 	isFails := validator.Validate(rb)
 	if isFails != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -107,21 +106,11 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// store data
-	u, err := api.UserService.Register(r.Context(), input)
+	data, err := api.UserService.Register(r.Context(), input)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
 		return
-	}
-
-	var data = struct {
-		ID       int64  `json:"id"`
-		Username string `json:"username"`
-		Email    string `json:"email"`
-	}{
-		ID:       u.ID,
-		Username: u.Username,
-		Email:    u.Email,
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -140,7 +129,7 @@ func (api *API) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// validation
+	// validation input
 	isFails := validator.Validate(rb)
 	if isFails != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -148,24 +137,15 @@ func (api *API) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, token, err := api.UserService.Login(rb.Username, rb.Password)
+	data, err := api.UserService.Login(r.Context(), model.UserLoginInput{
+		Username: rb.Username,
+		Password: rb.Password,
+	})
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(NewError(false, "ERR_INVALID_CREDS", "Invalid username or password"))
 		return
-	}
-
-	var data = struct {
-		ID          int64  `json:"id"`
-		Username    string `json:"username"`
-		Email       string `json:"email"`
-		AccessToken string `json:"access_token"`
-	}{
-		ID:          u.ID,
-		Username:    u.Username,
-		Email:       u.Email,
-		AccessToken: token,
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -192,21 +172,16 @@ func (api *API) HandleListUser(w http.ResponseWriter, r *http.Request) {
 		role = ""
 	}
 
-	users, totalPage, err := api.UserService.ListUser(r.Context(), model.UserLoginInput{})
+	input := model.ListUserInput{
+		Limit: int64(limit),
+		Page:  int64(page),
+		Role:  role,
+	}
+	data, err := api.UserService.ListUser(r.Context(), input)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
 		return
-	}
-
-	var data = struct {
-		Users      interface{} `json:"users"`
-		Page       int         `json:"page"`
-		TotalPages int64       `json:"total_pages"`
-	}{
-		Users:      users,
-		Page:       page,
-		TotalPages: totalPage,
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -215,12 +190,6 @@ func (api *API) HandleListUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) HandleRequestUploadUrl(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(NewNotFound())
-		return
-	}
-
 	var mimeType = strings.ToLower(r.URL.Query().Get("mime_type"))
 	var fileSize, _ = strconv.Atoi(r.URL.Query().Get("file_size"))
 	if mimeType != "image/jpeg" && mimeType != "image/png" {
