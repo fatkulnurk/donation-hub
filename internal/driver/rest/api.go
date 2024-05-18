@@ -2,6 +2,7 @@ package rest
 
 import (
 	"encoding/json"
+	"github.com/isdzulqor/donation-hub/internal/core/model"
 	"github.com/isdzulqor/donation-hub/internal/core/service/project"
 	"github.com/isdzulqor/donation-hub/internal/core/service/user"
 	"github.com/isdzulqor/donation-hub/internal/driver/rest/req"
@@ -96,8 +97,15 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("ok sekarang register")
+	input := model.UserRegisterInput{
+		Username: rb.Username,
+		Email:    rb.Email,
+		Password: rb.Password,
+		Role:     rb.Role,
+	}
+
 	// store data
-	u, err := api.UserService.Register(rb)
+	u, err := api.UserService.Register(r.Context(), input)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
@@ -121,19 +129,17 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	log.Println("login")
+
+	_, _ = api.UserService.Login(r.Context(), model.UserLoginInput{})
 }
 
 func (api *API) HandleListUser(w http.ResponseWriter, r *http.Request) {
 	log.Println("get users")
+	_, _ = api.UserService.ListUser(r.Context(), model.ListUserInput{})
 }
 
 func (api *API) HandleRequestUploadUrl(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(NewNotFound())
-		return
-	}
-
+	_, _, _ = api.ProjectService.RequestUploadUrl(r.Context(), "", 1024)
 	log.Println("ini api upload")
 }
 
