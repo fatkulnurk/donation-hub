@@ -1,9 +1,10 @@
 package user
 
 import (
+	"context"
 	"errors"
 	"github.com/isdzulqor/donation-hub/internal/core/entity"
-	"github.com/isdzulqor/donation-hub/internal/driver/rest/req"
+	"github.com/isdzulqor/donation-hub/internal/core/model"
 )
 
 type Storage struct {
@@ -11,9 +12,9 @@ type Storage struct {
 }
 
 type Service interface {
-	Register(rb req.RegisterReqBody) (user entity.User, err error)
-	Login(username string, password string) (user entity.User, accessToken string, err error)
-	ListUser(limit int, page int, role string) (users []entity.User, totalPage int64, err error)
+	Register(ctx context.Context, input model.UserRegisterInput) (output model.UserRegisterOutput, err error)
+	Login(ctx context.Context, input model.UserLoginInput) (output model.UserLoginOutput, err error)
+	ListUser(ctx context.Context, input model.ListUserInput) (output model.ListUserOutput, err error)
 }
 
 func NewService(storage DataStorage) Service {
@@ -22,28 +23,28 @@ func NewService(storage DataStorage) Service {
 	}
 }
 
-func (s *Storage) Register(rb req.RegisterReqBody) (user entity.User, err error) {
-	hasEmail, err := s.storage.HasEmail(rb.Email)
+func (s *Storage) Register(ctx context.Context, input model.UserRegisterInput) (output model.UserRegisterOutput, err error) {
+	hasEmail, err := s.storage.HasEmail(input.Email)
 	if (err != nil) || (hasEmail) {
 		err = errors.New("email already exists")
 		return
 	}
 
-	hasUsername, err := s.storage.HasUsername(rb.Username)
+	hasUsername, err := s.storage.HasUsername(input.Username)
 	if (err != nil) || (hasUsername) {
 		err = errors.New("username already exists")
 		return
 	}
-	user = entity.User{
-		Username: rb.Username,
-		Password: rb.Password,
-		Email:    rb.Email,
+	user := entity.User{
+		Username: input.Username,
+		Password: input.Password,
+		Email:    input.Email,
 	}
-	user, err = s.storage.CreateUser(user, rb.Role)
-	return user, err
+	user, err = s.storage.CreateUser(user, input.Role)
+	return model.UserRegisterOutput{}, err
 }
 
-func (s *Storage) Login(username string, password string) (user entity.User, accessToken string, err error) {
+func (s *Storage) Login(ctx context.Context, input model.UserLoginInput) (output model.UserLoginOutput, err error) {
 	user, err = s.storage.GetUserByUsername(username)
 	if err != nil || user.Password != password {
 		err = errors.New("invalid username or password")
@@ -51,11 +52,11 @@ func (s *Storage) Login(username string, password string) (user entity.User, acc
 	}
 
 	// todo generate access token
-
+	panic("implement me")
 	return
 }
 
-func (s *Storage) ListUser(limit int, page int, role string) (users []entity.User, totalPage int64, err error) {
+func (s *Storage) ListUser(ctx context.Context, input model.ListUserInput) (output model.ListUserOutput, err error) {
 	users, totalPage, err = s.storage.GetUser(limit, page, role)
 	if err != nil {
 		return nil, 0, err

@@ -2,6 +2,7 @@ package rest
 
 import (
 	"encoding/json"
+	"github.com/isdzulqor/donation-hub/internal/core/model"
 	"github.com/isdzulqor/donation-hub/internal/core/service/project"
 	"github.com/isdzulqor/donation-hub/internal/core/service/user"
 	"github.com/isdzulqor/donation-hub/internal/driver/rest/req"
@@ -35,14 +36,16 @@ func (api *API) ListenAndServe(appPort string) {
 			"/assets",
 		},
 	}
-	mux.HandleFunc("/users/register", api.HandlePostUserRegister)
-	mux.HandleFunc("/users/login", api.HandlePostUserLogin)
-	mux.HandleFunc("/users", api.HandleGetUser)
-	mux.HandleFunc("/projects/upload", api.HandleGetProjectUpload)
-	mux.HandleFunc("/projects", api.HandleGetAndPostProject)
-	mux.HandleFunc("/projects/", api.HandleGetProjectById)
-	mux.HandleFunc("/projects/{project_id}/review", api.HandlePutProjectReview)
-	mux.HandleFunc("/projects/{project_id}/donations", api.HandleGetAndPostProjectDonation)
+	mux.HandleFunc("POST /users/register", api.HandleRegister)
+	mux.HandleFunc("POST /users/login", api.HandleLogin)
+	mux.HandleFunc("GET /users", api.HandleListUser)
+	mux.HandleFunc("GET /projects/upload", api.HandleRequestUploadUrl)
+	mux.HandleFunc("POST /projects", api.HandleSubmitProject)
+	mux.HandleFunc("PUT /projects/{project_id}/review", api.HandleReviewProjectByAdmin)
+	mux.HandleFunc("GET /projects", api.HandleListProject)
+	mux.HandleFunc("GET /projects/{project_id}", api.HandleGetProjectById)
+	mux.HandleFunc("POST /projects/{project_id}/donations", api.HandleDonateToProject)
+	mux.HandleFunc("GET /projects/{project_id}/donations", api.HandleListProjectDonation)
 	log.Println("Starting server on :" + appPort)
 	err := http.ListenAndServe(":"+appPort, mux)
 	log.Fatal(err)
@@ -76,14 +79,8 @@ func (m *customServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *API) HandlePostUserRegister(w http.ResponseWriter, r *http.Request) {
+func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	log.Println("register")
-
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(NewNotFound())
-		return
-	}
 
 	var rb req.RegisterReqBody
 	err := json.NewDecoder(r.Body).Decode(&rb)
@@ -102,8 +99,15 @@ func (api *API) HandlePostUserRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("ok sekarang register")
+	input := model.UserRegisterInput{
+		Username: rb.Username,
+		Email:    rb.Email,
+		Password: rb.Password,
+		Role:     rb.Role,
+	}
+
 	// store data
-	u, err := api.UserService.Register(rb)
+	u, err := api.UserService.Register(r.Context(), input)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
@@ -125,12 +129,7 @@ func (api *API) HandlePostUserRegister(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (api *API) HandlePostUserLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(NewNotFound())
-		return
-	}
+func (api *API) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	log.Println("login")
 
 	var rb req.LoginReqBody
@@ -174,13 +173,8 @@ func (api *API) HandlePostUserLogin(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (api *API) HandleGetUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(NewNotFound())
-		return
-	}
-
+func (api *API) HandleListUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("get users")
 	var limit, page = 10, 1
 	limitQuery := r.URL.Query().Get("limit")
 	pageQuery := r.URL.Query().Get("page")
@@ -198,7 +192,7 @@ func (api *API) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 		role = ""
 	}
 
-	users, totalPage, err := api.UserService.ListUser(limit, page, role)
+	users, totalPage, err := api.UserService.ListUser(r.Context(), model.UserLoginInput{})
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
@@ -220,7 +214,7 @@ func (api *API) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (api *API) HandleGetProjectUpload(w http.ResponseWriter, r *http.Request) {
+func (api *API) HandleRequestUploadUrl(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(NewNotFound())
@@ -235,7 +229,7 @@ func (api *API) HandleGetProjectUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, at, err := api.ProjectService.RequestUploadUrl(mimeType, int64(fileSize))
+	url, at, err := api.ProjectService.RequestUploadUrl(r.Context(), mimeType, int64(fileSize))
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -260,70 +254,36 @@ func (api *API) HandleGetProjectUpload(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (api *API) HandleGetAndPostProject(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		log.Println("ini api list project")
-		// list project
-		return
-	case http.MethodPost:
-		log.Println("ini api submit project")
-		// Submit Project
-		return
-	default:
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(NewNotFound())
-		return
-	}
+func (api *API) HandleSubmitProject(w http.ResponseWriter, r *http.Request) {
+	log.Println("ini api submit project")
+	// Submit Project
+	return
 }
 
-// HandlePutProjectReview PUT: /projects/{project_id}/review
+func (api *API) HandleReviewProjectByAdmin(w http.ResponseWriter, r *http.Request) {
+	log.Println("ini api review project by admin")
+	// Submit Project
+	return
+}
+
+func (api *API) HandleListProject(w http.ResponseWriter, r *http.Request) {
+	log.Println("ini api list project")
+	return
+}
+
 func (api *API) HandlePutProjectReview(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(NewNotFound())
-		return
-	}
 
-	projectID := extractProjectID(r.URL.Path)
-	log.Printf("Review page for project %s\n", projectID)
+	log.Printf("Review page for project")
 }
 
-// HandleGetProjectById Get Project
 func (api *API) HandleGetProjectById(w http.ResponseWriter, r *http.Request) {
-	//if r.Method != http.MethodGet {
-	//	w.WriteHeader(http.StatusNotFound)
-	//	_ = json.NewEncoder(w).Encode(NewNotFound())
-	//	return
-	//}
-
-	projectId := extractProjectID(r.URL.Path)
-	log.Printf("Ini project by id  %s\n", projectId)
+	log.Printf("Ini project by id")
 }
 
-func (api *API) HandleGetAndPostProjectDonation(w http.ResponseWriter, r *http.Request) {
-	projectID := extractProjectID(r.URL.Path)
-	log.Printf("Donations page for project %s\n", projectID)
-	//
-	//switch r.Method {
-	//case http.MethodGet:
-	//	// List Project Donations
-	//	return
-	//case http.MethodPost:
-	//	// Donate to Project
-	//	return
-	//default:
-	//	w.WriteHeader(http.StatusNotFound)
-	//	_ = json.NewEncoder(w).Encode(NewNotFound())
-	//	return
-	//}
+func (api *API) HandleDonateToProject(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Ini donate to project")
 }
 
-func extractProjectID(path string) string {
-	re := regexp.MustCompile(`/projects/(\d+)`)
-	matches := re.FindStringSubmatch(path)
-	if len(matches) > 1 {
-		return matches[1]
-	}
-	return ""
+func (api *API) HandleListProjectDonation(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Ini handle list project")
 }
