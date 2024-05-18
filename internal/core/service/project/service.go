@@ -2,7 +2,8 @@ package project
 
 import (
 	"context"
-	"github.com/isdzulqor/donation-hub/internal/driver/rest/req"
+	"errors"
+	"github.com/isdzulqor/donation-hub/internal/core/model"
 )
 
 type Storage struct {
@@ -11,13 +12,13 @@ type Storage struct {
 }
 
 type Service interface {
-	RequestUploadUrl(ctx context.Context, mimeType string, fileSize int64) (url string, expiredAt int64, err error)
-	Submit(ctx context.Context, rb req.SubmitProjectReqBody) (err error)
-	ReviewByAdmin(ctx context.Context, rb req.ReviewProjectReqBody) (err error)
-	Get(ctx context.Context) (err error)
-	GetById(ctx context.Context, id int64) (err error)
-	DonateToProject(ctx context.Context, id int64, rb req.DonateToProjectReqBody) (err error)
-	GetDonationById(ctx context.Context, id int64) (err error)
+	RequestUploadUrl(ctx context.Context, input model.RequestUploadUrlInput) (output model.RequestUploadUrlOutput, err error)
+	SubmitProject(ctx context.Context, input model.SubmitProjectInput) (output model.SubmitProjectOutput, err error)
+	ReviewProjectByAdmin(ctx context.Context, input model.ReviewProjectByAdminInput) (ok bool, err error)
+	ListProject(ctx context.Context, input model.ListProjectInput) (output model.ListProjectOutput, err error)
+	GetProjectById(ctx context.Context, input model.GetProjectByIdInput) (output model.GetProjectByIdOutput, err error)
+	DonateToProject(ctx context.Context, input model.DonateToProjectInput) (ok bool, err error)
+	ListProjectDonationById(ctx context.Context, input model.ListProjectDonationInput) (output model.ListProjectDonationOutput, err error)
 }
 
 func NewService(storage DataStorage, fileStorage FileStorage) Service {
@@ -27,38 +28,61 @@ func NewService(storage DataStorage, fileStorage FileStorage) Service {
 	}
 }
 
-func (s Storage) RequestUploadUrl(ctx context.Context, mimeType string, fileSize int64) (url string, expiredAt int64, err error) {
-	url, expiredAt, err = s.fileStorage.RequestUploadUrl(mimeType, fileSize)
+func (s Storage) RequestUploadUrl(ctx context.Context, input model.RequestUploadUrlInput) (output model.RequestUploadUrlOutput, err error) {
+	// validate user, make sure role is valid
+
+	// validate size
+	if input.FileSize > 1048576 {
+		err = errors.New("filesize can't greater than 1MB")
+		return
+	}
+
+	// validate mimetype
+	if input.MimeType != "image/jpeg" && input.MimeType != "image/png" {
+		err = errors.New("mimetype must be image/jpg or image/png")
+		return
+	}
+
+	url, expiredAt, err := s.fileStorage.RequestUploadUrl(input.MimeType, input.FileSize)
+
+	// assign to struct
+	output.URL = url
+	output.FileSize = input.FileSize
+	output.MimeType = input.MimeType
+	output.ExpiresAt = expiredAt
 
 	return
 }
 
-func (s Storage) Submit(ctx context.Context, rb req.SubmitProjectReqBody) (err error) {
+func (s Storage) SubmitProject(ctx context.Context, input model.SubmitProjectInput) (output model.SubmitProjectOutput, err error) {
+	// validate user, make sure role is valid
+
+	// save to database
+	_ = s.storage.Submit(ctx, input)
+	panic("implement me")
+}
+
+func (s Storage) ReviewProjectByAdmin(ctx context.Context, input model.ReviewProjectByAdminInput) (ok bool, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s Storage) ReviewByAdmin(ctx context.Context, rb req.ReviewProjectReqBody) (err error) {
+func (s Storage) ListProject(ctx context.Context, input model.ListProjectInput) (output model.ListProjectOutput, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s Storage) Get(ctx context.Context) (err error) {
+func (s Storage) GetProjectById(ctx context.Context, input model.GetProjectByIdInput) (output model.GetProjectByIdOutput, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s Storage) GetById(ctx context.Context, id int64) (err error) {
+func (s Storage) DonateToProject(ctx context.Context, input model.DonateToProjectInput) (ok bool, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s Storage) DonateToProject(ctx context.Context, id int64, rb req.DonateToProjectReqBody) (err error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s Storage) GetDonationById(ctx context.Context, id int64) (err error) {
+func (s Storage) ListProjectDonationById(ctx context.Context, input model.ListProjectDonationInput) (output model.ListProjectDonationOutput, err error) {
 	//TODO implement me
 	panic("implement me")
 }

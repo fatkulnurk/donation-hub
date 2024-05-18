@@ -13,8 +13,9 @@ type TokenStorage interface {
 // DataStorage for driven
 type DataStorage interface {
 	CreateUser(ctx context.Context, user model.UserRegisterInput) (entity.User, error)
-	HasEmail(email string) (has bool, err error)
-	HasUsername(username string) (has bool, err error)
-	GetUserByUsername(username string) (user entity.User, err error)
-	GetUser(limit int, page int, role string) (users []entity.User, total int64, err error)
+	HasEmail(ctx context.Context, email string) (has bool, err error)
+	HasUsername(ctx context.Context, username string) (has bool, err error)
+	GetUserByUsername(ctx context.Context, username string) (user entity.User, err error)
+	GetUser(ctx context.Context, input model.ListUserInput) (users []entity.User, total int64, err error)
+	UserHasRole(ctx context.Context, userId int64, role string) (ok bool, err error)
 }

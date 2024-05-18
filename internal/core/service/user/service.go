@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/isdzulqor/donation-hub/internal/core/model"
 )
 
@@ -23,13 +24,13 @@ func NewService(storage DataStorage) Service {
 }
 
 func (s *Storage) Register(ctx context.Context, input model.UserRegisterInput) (output model.UserRegisterOutput, err error) {
-	hasEmail, err := s.storage.HasEmail(input.Email)
+	hasEmail, err := s.storage.HasEmail(ctx, input.Email)
 	if (err != nil) || (hasEmail) {
 		err = errors.New("email already exists")
 		return
 	}
 
-	hasUsername, err := s.storage.HasUsername(input.Username)
+	hasUsername, err := s.storage.HasUsername(ctx, input.Username)
 	if (err != nil) || (hasUsername) {
 		err = errors.New("username already exists")
 		return
@@ -44,7 +45,7 @@ func (s *Storage) Register(ctx context.Context, input model.UserRegisterInput) (
 }
 
 func (s *Storage) Login(ctx context.Context, input model.UserLoginInput) (output model.UserLoginOutput, err error) {
-	user, err := s.storage.GetUserByUsername(input.Username)
+	user, err := s.storage.GetUserByUsername(ctx, input.Username)
 	if err != nil || user.Password != input.Password {
 		err = errors.New("invalid username or password")
 		return
@@ -54,20 +55,44 @@ func (s *Storage) Login(ctx context.Context, input model.UserLoginInput) (output
 	output.ID = user.ID
 	output.Email = user.Email
 	output.Username = user.Username
-	output.AccessToken = ""
 
 	// todo generate access token
 	panic("implement me")
+	output.AccessToken = ""
 	return
 }
 
 func (s *Storage) ListUser(ctx context.Context, input model.ListUserInput) (output model.ListUserOutput, err error) {
-	_, _, err = s.storage.GetUser(int(input.Limit), int(input.Page), input.Role)
+	users, total, err := s.storage.GetUser(ctx, input)
 	if err != nil {
 		return model.ListUserOutput{}, err
 	}
 
-	// todo parse output to listUser
+	listUsers := make([]model.ListUser, len(users))
+	for i, user := range users {
+		convertedRoles := make([]model.ListUserRole, len(user.Roles))
+		for j, role := range user.Roles {
+			convertedRoles[j] = model.ListUserRole{
+				Role: fmt.Sprintf("%d", role),
+			}
+		}
+
+		listUser := model.ListUser{
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+			Roles:    convertedRoles,
+		}
+		listUsers[i] = listUser
+	}
+
+	output = model.ListUserOutput{
+		Users: listUsers,
+		Pagination: model.ListUserMeta{
+			Page:       input.Page,
+			TotalPages: total,
+		},
+	}
 
 	return
 }

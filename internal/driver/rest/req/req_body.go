@@ -16,17 +16,19 @@ type SubmitProjectReqBody struct {
 	Title        string   `json:"title" validate:"nonzero,max=255"`
 	Description  string   `json:"description" validate:"nonzero,max=255"`
 	ImageUrls    []string `json:"image_urls" validate:"nonzero"`
-	DueAt        uint32   `json:"due_at" validate:"nonzero"`
-	TargetAmount uint64   `json:"target_amount" validate:"nonzero"`
+	DueAt        int64    `json:"due_at" validate:"nonzero"`
+	TargetAmount int64    `json:"target_amount" validate:"nonzero"`
 	Currency     string   `json:"currency" validate:"nonzero,max=255"`
 }
 
 type ReviewProjectReqBody struct {
-	Status string `json:"status" validate:"regexp=^(need_review|approved|completed|rejected)$"`
+	UserID    int64  `json:"user_id"` // user auth id from jwt or other
+	ProjectId int64  `json:"project_id"`
+	Status    string `json:"status" validate:"regexp=^(need_review|approved|completed|rejected)$"`
 }
 
 type DonateToProjectReqBody struct {
-	Amount   uint64 `json:"amount" validate:"nonzero"`
+	Amount   int64  `json:"amount" validate:"nonzero"`
 	Currency string `json:"currency" validate:"nonzero,max=255"`
 	Message  string `json:"message" validate:"nonzero,max=255"`
 }

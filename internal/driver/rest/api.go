@@ -192,30 +192,17 @@ func (api *API) HandleListUser(w http.ResponseWriter, r *http.Request) {
 func (api *API) HandleRequestUploadUrl(w http.ResponseWriter, r *http.Request) {
 	var mimeType = strings.ToLower(r.URL.Query().Get("mime_type"))
 	var fileSize, _ = strconv.Atoi(r.URL.Query().Get("file_size"))
-	if mimeType != "image/jpeg" && mimeType != "image/png" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(NewBadRequest("Wrong mimetype"))
-		return
-	}
 
-	url, at, err := api.ProjectService.RequestUploadUrl(r.Context(), mimeType, int64(fileSize))
+	input := model.RequestUploadUrlInput{
+		MimeType: mimeType,
+		FileSize: int64(fileSize),
+	}
+	data, err := api.ProjectService.RequestUploadUrl(r.Context(), input)
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
 		return
-	}
-
-	var data = struct {
-		MimeType  string `json:"mime_type"`
-		FileSize  int    `json:"file_size"`
-		Url       string `json:"url"`
-		ExpiresAt int64  `json:"expires_at"`
-	}{
-		MimeType:  mimeType,
-		FileSize:  fileSize,
-		Url:       url,
-		ExpiresAt: at,
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -225,7 +212,42 @@ func (api *API) HandleRequestUploadUrl(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) HandleSubmitProject(w http.ResponseWriter, r *http.Request) {
 	log.Println("ini api submit project")
-	// Submit Project
+
+	var rb req.SubmitProjectReqBody
+	err := json.NewDecoder(r.Body).Decode(&rb)
+
+	// error failed parse json
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
+		return
+	}
+
+	// error validation input
+	isFails := validator.Validate(rb)
+	if isFails != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest(isFails.Error()))
+		return
+	}
+
+	input := model.SubmitProjectInput{
+		Title:        rb.Title,
+		Description:  rb.Description,
+		ImageURLs:    rb.ImageUrls,
+		DueAt:        rb.DueAt,
+		TargetAmount: rb.TargetAmount,
+		Currency:     rb.Currency,
+	}
+	data, err := api.ProjectService.SubmitProject(r.Context(), input)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(NewBadRequest(err.Error()))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(NewResponseOk(data))
 	return
 }
 
