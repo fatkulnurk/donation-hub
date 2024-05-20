@@ -66,12 +66,21 @@ func (s Storage) GetUserByUsername(ctx context.Context, username string) (user e
 	return
 }
 
+type DatabaseUser struct {
+	ID        int64  `db:"id" json:"id"`
+	Username  string `db:"username" json:"username"`
+	Email     string `db:"email" json:"email"`
+	Password  string `db:"password" json:"password"`
+	CreatedAt int64  `db:"created_at" json:"created_at"`
+	Roles     string `db:"roles" json:"roles"`
+}
+
 func (s Storage) GetUser(ctx context.Context, input model.ListUserInput) (users []entity.User, total int64, err error) {
 	offset := (input.Page - 1) * input.Limit
 	var query, queryCount string
 
 	if input.Role == "" {
-		query = `SELECT users.*, GROUP_CONCAT(user_roles.role SEPARATOR ',') AS roles
+		query = `SELECT users.*, GROUP_CONCAT(user_roles.role) AS roles
 				FROM users 
 				JOIN user_roles ON users.id = user_roles.user_id
 				WHERE user_roles.role IN ("donor", "requester")
@@ -81,23 +90,25 @@ func (s Storage) GetUser(ctx context.Context, input model.ListUserInput) (users 
 				FROM users 
 				JOIN user_roles ON users.id = user_roles.user_id
 				WHERE user_roles.role IN ("donor", "requester")
-				GROUP BY users.id LIMIT ? OFFSET ? `
+				GROUP BY users.id`
 
 		err = s.sqlClient.Select(&users, query, input.Limit, offset)
 		err = s.sqlClient.Get(&total, queryCount)
 	} else {
-		query = `SELECT users.*, GROUP_CONCAT(user_roles.role SEPARATOR ',') AS roles
+		query = `SELECT users.*, GROUP_CONCAT(user_roles.role) AS roles
 				FROM users 
 				JOIN user_roles ON users.id = user_roles.user_id
 				WHERE user_roles.role = ? GROUP BY users.id LIMIT ? OFFSET ? `
 		queryCount = `SELECT count(*)
 				FROM users 
 				JOIN user_roles ON users.id = user_roles.user_id
-				WHERE user_roles.role = ? GROUP BY users.id LIMIT ? OFFSET ? `
+				WHERE user_roles.role = ?`
 
-		err = s.sqlClient.Select(&users, query, input.Limit, offset)
-		err = s.sqlClient.Get(&total, queryCount)
+		err = s.sqlClient.Select(&users, query, input.Role, input.Limit, offset)
+		err = s.sqlClient.Get(&total, queryCount, input.Role)
 	}
+
+	fmt.Println(total)
 
 	return
 }

@@ -3,8 +3,8 @@ package user
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/isdzulqor/donation-hub/internal/core/model"
+	"strings"
 )
 
 type Storage struct {
@@ -14,7 +14,7 @@ type Storage struct {
 type Service interface {
 	Register(ctx context.Context, input model.UserRegisterInput) (output model.UserRegisterOutput, err error)
 	Login(ctx context.Context, input model.UserLoginInput) (output model.UserLoginOutput, err error)
-	ListUser(ctx context.Context, input model.ListUserInput) (output model.ListUserOutput, err error)
+	ListUser(ctx context.Context, input model.ListUserInput) (output *model.ListUserOutput, err error)
 }
 
 func NewService(storage DataStorage) Service {
@@ -62,31 +62,25 @@ func (s *Storage) Login(ctx context.Context, input model.UserLoginInput) (output
 	return
 }
 
-func (s *Storage) ListUser(ctx context.Context, input model.ListUserInput) (output model.ListUserOutput, err error) {
+func (s *Storage) ListUser(ctx context.Context, input model.ListUserInput) (output *model.ListUserOutput, err error) {
 	users, total, err := s.storage.GetUser(ctx, input)
 	if err != nil {
-		return model.ListUserOutput{}, err
+		return nil, err
 	}
 
 	listUsers := make([]model.ListUser, len(users))
 	for i, user := range users {
-		convertedRoles := make([]model.ListUserRole, len(user.Roles))
-		for j, role := range user.Roles {
-			convertedRoles[j] = model.ListUserRole{
-				Role: fmt.Sprintf("%d", role),
-			}
-		}
-
+		roles := strings.Split(user.Roles, ",")
 		listUser := model.ListUser{
 			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,
-			Roles:    convertedRoles,
+			Roles:    roles,
 		}
 		listUsers[i] = listUser
 	}
 
-	output = model.ListUserOutput{
+	output = &model.ListUserOutput{
 		Users: listUsers,
 		Pagination: model.ListUserMeta{
 			Page:       input.Page,

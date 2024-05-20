@@ -34,10 +34,10 @@ type ListUserInput struct {
 }
 
 type ListUser struct {
-	ID       int64          `json:"id"`
-	Username string         `json:"username"`
-	Email    string         `json:"email"`
-	Roles    []ListUserRole `json:"roles"`
+	ID       int64    `json:"id"`
+	Username string   `json:"username"`
+	Email    string   `json:"email"`
+	Roles    []string `json:"roles"`
 }
 
 type ListUserRole struct {
