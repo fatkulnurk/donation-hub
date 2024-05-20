@@ -75,9 +75,15 @@ type DatabaseUser struct {
 	Roles     string `db:"roles" json:"roles"`
 }
 
+type UsersCount struct {
+	Total int64 `json:"total"`
+}
+
+// GetUser total is a total data, not pagination
 func (s Storage) GetUser(ctx context.Context, input model.ListUserInput) (users []entity.User, total int64, err error) {
 	offset := (input.Page - 1) * input.Limit
-	var query, queryCount string
+	var query string
+	var count UsersCount
 
 	if input.Role == "" {
 		query = `SELECT users.*, GROUP_CONCAT(user_roles.role) AS roles
@@ -86,30 +92,19 @@ func (s Storage) GetUser(ctx context.Context, input model.ListUserInput) (users 
 				WHERE user_roles.role IN ("donor", "requester")
 				GROUP BY users.id LIMIT ? OFFSET ? `
 
-		queryCount = `SELECT count(*)
-				FROM users 
-				JOIN user_roles ON users.id = user_roles.user_id
-				WHERE user_roles.role IN ("donor", "requester")
-				GROUP BY users.id`
-
 		err = s.sqlClient.Select(&users, query, input.Limit, offset)
-		err = s.sqlClient.Get(&total, queryCount)
+		err = s.sqlClient.Get(&count, "SELECT COUNT(*) as total FROM users u JOIN user_roles ur ON u.id = ur.user_id WHERE ur.role IN ('donor', 'requester')")
 	} else {
 		query = `SELECT users.*, GROUP_CONCAT(user_roles.role) AS roles
 				FROM users 
 				JOIN user_roles ON users.id = user_roles.user_id
 				WHERE user_roles.role = ? GROUP BY users.id LIMIT ? OFFSET ? `
-		queryCount = `SELECT count(*)
-				FROM users 
-				JOIN user_roles ON users.id = user_roles.user_id
-				WHERE user_roles.role = ?`
 
 		err = s.sqlClient.Select(&users, query, input.Role, input.Limit, offset)
-		err = s.sqlClient.Get(&total, queryCount, input.Role)
+		err = s.sqlClient.Get(&count, "SELECT COUNT(*) as total FROM users u JOIN user_roles ur ON u.id = ur.user_id WHERE ur.role = ? GROUP BY u.id")
 	}
 
-	fmt.Println(total)
-
+	total = count.Total
 	return
 }
 

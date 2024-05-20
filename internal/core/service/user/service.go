@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/isdzulqor/donation-hub/internal/core/model"
+	"math"
 	"strings"
 )
 
@@ -80,11 +81,17 @@ func (s *Storage) ListUser(ctx context.Context, input model.ListUserInput) (outp
 		listUsers[i] = listUser
 	}
 
+	// pagination
+	totalPage := int64(math.Ceil(float64(total / input.Limit)))
+	if total%input.Limit != 0 {
+		totalPage++
+	}
+
 	output = &model.ListUserOutput{
 		Users: listUsers,
 		Pagination: model.ListUserMeta{
 			Page:       input.Page,
-			TotalPages: total,
+			TotalPages: totalPage,
 		},
 	}
 

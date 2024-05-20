@@ -3,10 +3,10 @@ POST {{baseUrl}}/users/register
 Content-Type: application/json
 
 {
-  "username": "alfonso",
-  "email": "alfonxso@gmail.com",
-  "password": "123456",
-  "role": "donor"
+  "username": "alfonsoxd",
+  "email": "alfonsoxc@gmail.com",
+  "password": "1234565",
+  "role": "requester"
 }
 
 > {%
@@ -15,3 +15,7 @@ Content-Type: application/json
 %}
 
 ###
+
+### Register
+GET {{baseUrl}}/users?limit=2&page=1
+Content-Type: application/json
