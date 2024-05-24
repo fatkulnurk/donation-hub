@@ -8,8 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/isdzulqor/donation-hub/internal/core/model"
 	"github.com/isdzulqor/donation-hub/internal/core/service/project"
 	"github.com/isdzulqor/donation-hub/internal/core/service/user"
+	"github.com/isdzulqor/donation-hub/internal/driven/auth/jwt"
 	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/projectstorage"
 	"github.com/isdzulqor/donation-hub/internal/driven/storage/mysql/userstorage"
 	"github.com/isdzulqor/donation-hub/internal/driven/storage/s3/projectfilestorage"
@@ -19,15 +21,9 @@ import (
 	"os"
 )
 
-type configmap struct {
-	port         string
-	dbDriverName string
-	dbDataSource string
-}
-
 func main() {
 	cfg := envConfig()
-	db, err := GetDatabaseConnection(cfg.dbDriverName, cfg.dbDataSource)
+	db, err := GetDatabaseConnection(cfg.DBDriverName, cfg.DBDataSource)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -37,23 +33,26 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 
+	authToken := jwt.New(cfg)
+
 	userStorage := userstorage.New(db)
-	userService := user.NewService(userStorage)
+	userService := user.NewService(userStorage, authToken)
 
 	projectFileStorage := projectfilestorage.NewStorage(s3Client)
 	projectStorage := projectstorage.New(db)
-	projectService := project.NewService(projectStorage, projectFileStorage)
+	projectService := project.NewService(projectStorage, projectFileStorage, userStorage)
 
 	api := rest.API{
 		DB:             db,
 		UserService:    userService,
 		ProjectService: projectService,
+		AuthToken:      authToken,
 	}
 
-	api.ListenAndServe(cfg.port)
+	api.ListenAndServe(&cfg)
 }
 
-func envConfig() configmap {
+func envConfig() model.ConfigMap {
 	port, ok := os.LookupEnv("APP_PORT")
 	if !ok {
 		panic("APP_PORT not provided")
@@ -69,7 +68,16 @@ func envConfig() configmap {
 		panic("DATABASE_DATA_SOURCE not provided")
 	}
 
-	return configmap{port, dbDriverName, dbDataSource}
+	secretKey := "supersecrethehehe"
+	issuer := "Donation Hub"
+
+	return model.ConfigMap{
+		Port:         port,
+		DBDriverName: dbDriverName,
+		DBDataSource: dbDataSource,
+		SecretKey:    secretKey,
+		Issuer:       issuer,
+	}
 }
 
 func GetDatabaseConnection(driverName string, dataSource string) (*sqlx.DB, error) {

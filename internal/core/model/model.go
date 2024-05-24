@@ -1,6 +1,12 @@
 package model
 
-import "time"
+type ConfigMap struct {
+	Port         string
+	DBDriverName string
+	DBDataSource string
+	SecretKey    string
+	Issuer       string
+}
 
 type UserRegisterInput struct {
 	Username string `json:"username"`
@@ -21,7 +27,7 @@ type UserLoginInput struct {
 }
 
 type UserLoginOutput struct {
-	ID          string `json:"id"`
+	ID          int64  `json:"id"`
 	Username    string `json:"username"`
 	Email       string `json:"email"`
 	AccessToken string `json:"access_token"`
@@ -34,10 +40,10 @@ type ListUserInput struct {
 }
 
 type ListUser struct {
-	ID       int64          `json:"id"`
-	Username string         `json:"username"`
-	Email    string         `json:"email"`
-	Roles    []ListUserRole `json:"roles"`
+	ID       int64    `json:"id"`
+	Username string   `json:"username"`
+	Email    string   `json:"email"`
+	Roles    []string `json:"roles"`
 }
 
 type ListUserRole struct {
@@ -55,6 +61,7 @@ type ListUserOutput struct {
 }
 
 type RequestUploadUrlInput struct {
+	UserID   int64  `json:"user_id"` // user auth id from jwt or other
 	MimeType string `json:"mime_type"`
 	FileSize int64  `json:"file_size"`
 }
@@ -67,6 +74,7 @@ type RequestUploadUrlOutput struct {
 }
 
 type SubmitProjectInput struct {
+	UserID       int64    `json:"user_id"` // user auth id from jwt or other
 	Title        string   `json:"title"`
 	Description  string   `json:"description"`
 	ImageURLs    []string `json:"image_urls"`
@@ -76,7 +84,7 @@ type SubmitProjectInput struct {
 }
 
 type SubmitProjectOutput struct {
-	ID           string   `json:"id"`
+	ID           int64    `json:"id"`
 	Title        string   `json:"title"`
 	Description  string   `json:"description"`
 	ImageURLs    []string `json:"image_urls"`
@@ -85,16 +93,23 @@ type SubmitProjectOutput struct {
 	Currency     string   `json:"currency"`
 }
 
-type ApprovalStatusInput struct {
-	Status string `json:"status"`
+type ReviewProjectByAdminInput struct {
+	UserID    int64  `json:"user_id"` // user auth id from jwt or other
+	ProjectId int64  `json:"project_id"`
+	Status    string `json:"status"`
+}
+
+type GetProjectByIdInput struct {
+	ProjectId int64 `json:"project_id"`
 }
 
 type ListProjectInput struct {
-	Status  string    `json:"status"`
-	Limit   int64     `json:"limit"`
-	StartTs time.Time `json:"start_ts"` // jangan lupa, ini nanti Unix timestamp
-	EndTs   time.Time `json:"end_ts"`   // jangan lupa, ini nanti Unix timestamp
-	LastKey string    `json:"last_key"`
+	UserID  int64  `json:"user_id"` // user auth id from jwt or other
+	Status  string `json:"status"`
+	Limit   int64  `json:"limit"`
+	StartTs int64  `json:"start_ts"` // jangan lupa, ini nanti Unix timestamp
+	EndTs   int64  `json:"end_ts"`   // jangan lupa, ini nanti Unix timestamp
+	LastKey string `json:"last_key"`
 }
 
 type Requester struct {
@@ -103,32 +118,48 @@ type Requester struct {
 	Email    string `json:"email"`
 }
 
-type GetProjectByIdOutput struct {
+type Project struct {
 	ID           int64     `json:"id"`
 	Title        string    `json:"title"`
 	Description  string    `json:"description"`
 	ImageURLs    []string  `json:"image_urls"`
 	DueAt        int64     `json:"due_at"`
-	TargetAmount int64     `json:"target_amount"`
+	TargetAmount float64   `json:"target_amount"`
 	Currency     string    `json:"currency"`
 	Status       string    `json:"status"`
 	Requester    Requester `json:"requester"`
 }
 
-type GetProjectOutput struct {
-	Projects []GetProjectByIdOutput `json:"projects"`
-	LastKey  string                 `json:"last_key"`
+type GetProjectByIdOutput struct {
+	ID               int64     `json:"id"`
+	Title            string    `json:"title"`
+	Description      string    `json:"description"`
+	ImageURLs        []string  `json:"image_urls"`
+	DueAt            int64     `json:"due_at"`
+	TargetAmount     float64   `json:"target_amount"`
+	CollectionAmount float64   `json:"collection_amount"`
+	Currency         string    `json:"currency"`
+	Status           string    `json:"status"`
+	Requester        Requester `json:"requester"`
+}
+
+type ListProjectOutput struct {
+	Projects []Project `json:"projects"`
+	LastKey  string    `json:"last_key"`
 }
 
 type DonateToProjectInput struct {
-	Amount   int64  `json:"amount"`
-	Currency string `json:"currency"`
-	Message  string `json:"message"`
+	UserID    int64  `json:"user_id"` // user auth id from jwt or other
+	ProjectId int64  `json:"project_id"`
+	Amount    int64  `json:"amount"`
+	Currency  string `json:"currency"`
+	Message   string `json:"message"`
 }
 
 type ListProjectDonationInput struct {
-	Limit   int64  `json:"limit"`
-	LastKey string `json:"last_key"`
+	ProjectId int64  `json:"project_id"`
+	Limit     int64  `json:"limit"`
+	LastKey   string `json:"last_key"`
 }
 
 type Donor struct {
@@ -148,4 +179,10 @@ type Donation struct {
 type ListProjectDonationOutput struct {
 	Donations []Donation `json:"donations"`
 	LastKey   string     `json:"last_key"`
+}
+
+type AuthPayload struct {
+	UserID   int64
+	Username string
+	Email    string
 }

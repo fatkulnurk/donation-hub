@@ -4,14 +4,85 @@ Content-Type: application/json
 
 {
   "username": "alfonso",
-  "email": "alfonxso@gmail.com",
-  "password": "123456",
+  "email": "alfonso@gmail.com",
+  "password": "1234565",
   "role": "donor"
 }
 
 > {%
     client.global.set("username", response.body.data.username);
-    client.global.set("password", response.body.data.email);
+    client.global.set("email", response.body.data.email);
+    client.global.set("password", request.body.data.password);
 %}
 
-###
+### Login
+POST {{baseUrl}}/users/login
+Content-Type: application/json
+
+{
+  "username": "alfonsoh",
+  "password": "1234565"
+}
+
+> {%
+    client.global.set("accessToken", response.body.data.access_token);
+%}
+
+### Get User
+GET {{baseUrl}}/users?limit=2&page=1
+Content-Type: application/json
+
+
+### Request Upload URL
+GET {{baseUrl}}/projects/upload?mime_type=image/jpeg&file_size=1024
+Content-Type: application/json
+Authorization: Bearer {{ accessToken}}
+
+> {%
+    client.global.set("requestUploadUrl", response.body.data.url);
+%}
+
+### Login
+POST {{baseUrl}}/projects
+Content-Type: application/json
+Authorization: Bearer {{ accessToken}}
+
+{
+  "title": "Project",
+  "description": "Project Description",
+  "image_urls": [
+    "https://media-donation-hub.ap-southeast-3.amazonaws.com/images/MTcxNDk2Mzg4MTE4OTU4MTIzMzYyNA.jpg",
+    "https://media-donation-hub.ap-southeast-3.amazonaws.com/images/MTcxNDk2Mzg4MT38dsjndjnsdjs3.jpg"
+  ],
+  "due_at": 1704945600,
+  "target_amount": 1000000,
+  "currency": "USD"
+}
+
+> {%
+    client.global.set("accessToken", response.body.data.access_token);
+%}
+
+### List Projects
+GET {{baseUrl}}/projects
+Content-Type: application/json
+Authorization: Bearer {{ accessToken}}
+
+### List Projects
+GET {{baseUrl}}/projects/3
+Content-Type: application/json
+
+### Donate To Project
+POST {{baseUrl}}/projects/3/donations
+Content-Type: application/json
+Authorization: Bearer {{ accessToken}}
+
+{
+  "amount": 1,
+  "currency": "USD",
+  "message": "Wish you all the best"
+}
+
+### List Project Donations
+GET {{baseUrl}}/projects/3/donations
+Content-Type: application/json
