@@ -22,9 +22,7 @@ type SubmitProjectReqBody struct {
 }
 
 type ReviewProjectReqBody struct {
-	UserID    int64  `json:"user_id"` // user auth id from jwt or other
-	ProjectId int64  `json:"project_id"`
-	Status    string `json:"status" validate:"regexp=^(need_review|approved|completed|rejected)$"`
+	Status string `json:"status" validate:"regexp=^(need_review|approved|completed|rejected)$"`
 }
 
 type DonateToProjectReqBody struct {

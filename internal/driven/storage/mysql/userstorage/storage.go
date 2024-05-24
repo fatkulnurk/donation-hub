@@ -60,8 +60,14 @@ func (s Storage) HasUsername(ctx context.Context, username string) (has bool, er
 }
 
 func (s Storage) GetUserByUsername(ctx context.Context, username string) (user entity.User, err error) {
-	query := "select * from users where username = ?"
+	query := "SELECT * FROM users WHERE username = ?"
 	err = s.sqlClient.Get(&user, query, username)
+
+	return
+}
+func (s Storage) GetUserById(ctx context.Context, id int64) (user entity.User, err error) {
+	query := "SELECT * FROM users WHERE id = ?"
+	err = s.sqlClient.Get(&user, query, id)
 
 	return
 }

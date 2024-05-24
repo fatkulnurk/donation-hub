@@ -10,10 +10,10 @@ type FileStorage interface {
 }
 
 type DataStorage interface {
-	Submit(ctx context.Context, input model.SubmitProjectInput) (err error)
+	Submit(ctx context.Context, input model.SubmitProjectInput) (projectId int64, err error)
 	ReviewByAdmin(ctx context.Context, input model.ReviewProjectByAdminInput) (err error)
-	ListProject(ctx context.Context, input model.ListProjectInput) (err error)
-	GetProjectById(ctx context.Context, input model.GetProjectByIdInput) (err error)
+	ListProject(ctx context.Context, input model.ListProjectInput) (o model.ListProjectOutput, err error)
+	GetProjectById(ctx context.Context, input model.GetProjectByIdInput) (o model.GetProjectByIdOutput, err error)
 	DonateToProject(ctx context.Context, input model.DonateToProjectInput) (err error)
-	GetDonationById(ctx context.Context, input model.GetProjectByIdInput) (err error)
+	ListDonationByProjectId(ctx context.Context, input model.ListProjectDonationInput) (o model.ListProjectDonationOutput, err error)
 }

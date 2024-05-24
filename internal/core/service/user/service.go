@@ -3,13 +3,16 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/isdzulqor/donation-hub/internal/core/model"
+	"github.com/isdzulqor/donation-hub/internal/core/service/auth_token"
 	"math"
 	"strings"
 )
 
 type Storage struct {
-	storage DataStorage
+	storage   DataStorage
+	authToken auth_token.Service
 }
 
 type Service interface {
@@ -18,9 +21,10 @@ type Service interface {
 	ListUser(ctx context.Context, input model.ListUserInput) (output *model.ListUserOutput, err error)
 }
 
-func NewService(storage DataStorage) Service {
+func NewService(storage DataStorage, authToken auth_token.Service) Service {
 	return &Storage{
-		storage: storage,
+		storage:   storage,
+		authToken: authToken,
 	}
 }
 
@@ -52,14 +56,22 @@ func (s *Storage) Login(ctx context.Context, input model.UserLoginInput) (output
 		return
 	}
 
+	tokenPayload := model.AuthPayload{
+		UserID:   user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+	}
+	accessToken, err := s.authToken.GenerateToken(tokenPayload)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	// assign output
 	output.ID = user.ID
 	output.Email = user.Email
 	output.Username = user.Username
-
-	// todo generate access token
-	panic("implement me")
-	output.AccessToken = ""
+	output.AccessToken = accessToken
 	return
 }
 
